@@ -1,6 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -24,6 +26,48 @@ type MovieSubwayMapProps = {
   transferNotes: TransferNote[];
   completedStationIds?: string[];
   unavailableStationIds?: string[];
+};
+
+type TmdbProviderGroup = "flatrate" | "rent" | "buy" | "ads" | "free";
+
+type TmdbProvider = {
+  id: number;
+  name: string;
+  logoUrl: string | null;
+};
+
+type TmdbStationData = {
+  movie: {
+    tmdbId: number;
+    title: string;
+    originalTitle: string;
+    overview: string | null;
+    releaseDate: string | null;
+    runtimeMinutes: number | null;
+    posterUrl: string | null;
+    tmdbUrl: string;
+    genres: string[];
+  };
+  watch: {
+    region: "KR";
+    link: string | null;
+    providers: Record<TmdbProviderGroup, TmdbProvider[]>;
+  };
+  attribution: {
+    metadata: "TMDb";
+    availability: "JustWatch via TMDb";
+  };
+};
+
+type TmdbPanelState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; data: TmdbStationData }
+  | { status: "missing-config"; message: string }
+  | { status: "error"; message: string };
+
+type TmdbRequestState = TmdbPanelState & {
+  stationId: string | null;
 };
 
 const MAP_WIDTH = 1680;
@@ -122,6 +166,14 @@ const stationTypeLabel: Record<Station["stationType"], string> = {
   terminal: "종착역",
 };
 
+const watchProviderGroups: Array<{ key: TmdbProviderGroup; label: string }> = [
+  { key: "flatrate", label: "스트리밍" },
+  { key: "rent", label: "대여" },
+  { key: "buy", label: "구매" },
+  { key: "free", label: "무료" },
+  { key: "ads", label: "광고" },
+];
+
 function stationRoleLabel(station: Station) {
   return station.stationKind === "empty"
     ? "빈 역"
@@ -171,6 +223,153 @@ function StationInfoRow({
         {children}
       </dd>
     </div>
+  );
+}
+
+function ProviderChip({ provider }: { provider: TmdbProvider }) {
+  return (
+    <span className="inline-flex min-h-8 items-center gap-2 rounded-[3px] border border-line bg-canvas px-2 py-1 text-xs font-black text-foreground">
+      {provider.logoUrl ? (
+        <Image
+          src={provider.logoUrl}
+          alt=""
+          width={20}
+          height={20}
+          className="h-5 w-5 rounded-[3px] object-contain"
+        />
+      ) : (
+        <span className="grid h-5 w-5 place-items-center rounded-[3px] bg-surface text-[10px]">
+          {provider.name.slice(0, 1)}
+        </span>
+      )}
+      <span>{provider.name}</span>
+    </span>
+  );
+}
+
+function TmdbPosterFrame({
+  state,
+  title,
+}: {
+  state: TmdbPanelState;
+  title: string;
+}) {
+  const frameClassName =
+    "ml-auto aspect-[2/3] w-[104px] overflow-hidden rounded-[3px] border border-line bg-surface sm:w-[128px]";
+
+  if (state.status === "loading") {
+    return <div className={frameClassName} aria-label="포스터 불러오는 중" />;
+  }
+
+  if (state.status !== "ready") {
+    return null;
+  }
+
+  return (
+    <div className={frameClassName}>
+      {state.data.movie.posterUrl ? (
+        <Image
+          src={state.data.movie.posterUrl}
+          alt={`${title} 포스터`}
+          width={256}
+          height={384}
+          className="h-full w-full object-cover"
+          priority={false}
+        />
+      ) : (
+        <div className="grid h-full place-items-center px-3 text-center text-xs font-black text-muted">
+          포스터 없음
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TmdbAvailabilityPanel({ state }: { state: TmdbPanelState }) {
+  if (state.status === "idle") {
+    return null;
+  }
+
+  if (state.status === "loading") {
+    return (
+      <section className="grid gap-3 border-t border-line pt-5">
+        <h3 className="text-xs font-black text-muted">감상 가능 서비스</h3>
+        <div className="grid gap-2">
+          <div className="h-4 w-32 rounded-full bg-surface" />
+          <div className="flex flex-wrap gap-2">
+            <div className="h-8 w-24 rounded-[3px] bg-surface" />
+            <div className="h-8 w-28 rounded-[3px] bg-surface" />
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (state.status === "missing-config") {
+    return (
+      <section className="grid gap-2 border-t border-line pt-5">
+        <h3 className="text-xs font-black text-muted">감상 가능 서비스</h3>
+        <p className="text-sm font-semibold leading-6 text-muted">
+          서버 환경변수에 TMDB_READ_ACCESS_TOKEN 또는 TMDB_API_KEY가 필요합니다.
+        </p>
+      </section>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <section className="grid gap-2 border-t border-line pt-5">
+        <h3 className="text-xs font-black text-muted">감상 가능 서비스</h3>
+        <p className="text-sm font-semibold leading-6 text-muted">{state.message}</p>
+      </section>
+    );
+  }
+
+  const providerSections = watchProviderGroups
+    .map((group) => ({
+      ...group,
+      providers: state.data.watch.providers[group.key],
+    }))
+    .filter((group) => group.providers.length > 0);
+
+  return (
+    <section className="grid gap-4 border-t border-line pt-5">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-xs font-black text-muted">감상 가능 서비스</h3>
+        <a
+          href={state.data.movie.tmdbUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mk-focus text-xs font-black text-foreground underline decoration-line underline-offset-4"
+        >
+          TMDb
+        </a>
+      </div>
+
+      <div className="grid gap-3">
+        {providerSections.length > 0 ? (
+          providerSections.map((group) => (
+            <div key={group.key} className="grid gap-2">
+              <p className="text-[11px] font-black text-muted">{group.label}</p>
+              <div className="flex flex-wrap gap-2">
+                {group.providers.map((provider) => (
+                  <ProviderChip key={provider.id} provider={provider} />
+                ))}
+              </div>
+            </div>
+          ))
+        ) : (
+          <p className="text-sm font-semibold leading-6 text-muted">
+            감상 가능 정보가 아직 없습니다.
+          </p>
+        )}
+      </div>
+
+      <p className="text-[11px] font-semibold leading-5 text-muted">
+        Metadata by {state.data.attribution.metadata}. Availability by{" "}
+        {state.data.attribution.availability}.
+      </p>
+    </section>
   );
 }
 
@@ -488,6 +687,10 @@ export function MovieSubwayMap({
   const [selectedLineId, setSelectedLineId] = useState<LineId | null>(null);
   const [focusedLineId, setFocusedLineId] = useState<LineId | null>(null);
   const [hoveredLineId, setHoveredLineId] = useState<LineId | null>(null);
+  const [tmdbState, setTmdbState] = useState<TmdbRequestState>({
+    status: "idle",
+    stationId: null,
+  });
   const viewportWidth = useSyncExternalStore(
     subscribeToViewport,
     getViewportWidth,
@@ -546,6 +749,13 @@ export function MovieSubwayMap({
   const stationTransfers = selectedStation
     ? transferNotes.filter((note) => note.stationId === selectedStation.id)
     : [];
+  const selectedTmdbStationId =
+    selectedStation?.stationKind === "movie" ? selectedStation.id : null;
+  const activeTmdbState: TmdbPanelState = !selectedTmdbStationId
+    ? { status: "idle" }
+    : tmdbState.stationId === selectedTmdbStationId
+      ? tmdbState
+      : { status: "loading" };
   const completedStationIdSet = useMemo(
     () => new Set(completedStationIds),
     [completedStationIds],
@@ -554,6 +764,50 @@ export function MovieSubwayMap({
     () => new Set(unavailableStationIds),
     [unavailableStationIds],
   );
+
+  useEffect(() => {
+    if (!selectedTmdbStationId) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    fetch(`/api/tmdb/station/${encodeURIComponent(selectedTmdbStationId)}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = await response.json();
+
+        if (!response.ok) {
+          setTmdbState({
+            status:
+              payload.status === "missing_config" ? "missing-config" : "error",
+            stationId: selectedTmdbStationId,
+            message: payload.message ?? "TMDb 정보를 불러오지 못했습니다.",
+          });
+          return;
+        }
+
+        setTmdbState({
+          status: "ready",
+          stationId: selectedTmdbStationId,
+          data: payload as TmdbStationData,
+        });
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+
+        setTmdbState({
+          status: "error",
+          stationId: selectedTmdbStationId,
+          message: "TMDb 정보를 불러오지 못했습니다.",
+        });
+      });
+
+    return () => controller.abort();
+  }, [selectedTmdbStationId]);
 
   function lineIsInFocus(lineId: LineId) {
     return !focusedLineId || focusedLineId === lineId;
@@ -864,28 +1118,45 @@ export function MovieSubwayMap({
         {selectedStation ? (
           <div className="grid gap-5">
             <header className="-mx-5 grid gap-3 border-b border-line bg-canvas/97 px-5 pb-5 backdrop-blur sm:sticky sm:top-0 sm:z-10 sm:-mx-7 sm:px-7">
-              <div className="flex flex-wrap items-center gap-2 text-xs font-black">
-                <span
-                  className="rounded-[3px] px-2 py-1 text-canvas"
-                  style={{
-                    backgroundColor: currentLine?.color ?? "var(--foreground)",
-                  }}
-                >
-                  {currentLine?.shortName ?? "노선"} · {stationRoleLabel(selectedStation)}
-                </span>
-              </div>
-              <span
-                aria-hidden="true"
-                className="h-1.5 w-24 rounded-full"
-                style={{ backgroundColor: currentLine?.color ?? "var(--foreground)" }}
-              />
-              <div className="grid gap-2">
-                <h2 className="break-keep text-2xl font-black leading-tight sm:text-4xl">
-                  {selectedStation.titleKo}
-                </h2>
-                <p className="text-sm leading-6 text-muted">
-                  {stationMeta(selectedStation)}
-                </p>
+              <div
+                className={
+                  selectedStation.stationKind === "movie"
+                    ? "grid grid-cols-[minmax(0,1fr)_104px] items-start gap-4 sm:grid-cols-[minmax(0,1fr)_128px]"
+                    : "grid gap-3"
+                }
+              >
+                <div className="grid min-w-0 gap-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-black">
+                    <span
+                      className="rounded-[3px] px-2 py-1 text-canvas"
+                      style={{
+                        backgroundColor: currentLine?.color ?? "var(--foreground)",
+                      }}
+                    >
+                      {currentLine?.shortName ?? "노선"} ·{" "}
+                      {stationRoleLabel(selectedStation)}
+                    </span>
+                  </div>
+                  <span
+                    aria-hidden="true"
+                    className="h-1.5 w-24 rounded-full"
+                    style={{ backgroundColor: currentLine?.color ?? "var(--foreground)" }}
+                  />
+                  <div className="grid gap-2">
+                    <h2 className="break-keep text-2xl font-black leading-tight text-foreground [overflow-wrap:anywhere] sm:text-3xl">
+                      {selectedStation.titleKo}
+                    </h2>
+                    <p className="text-sm leading-6 text-muted">
+                      {stationMeta(selectedStation)}
+                    </p>
+                  </div>
+                </div>
+                {selectedStation.stationKind === "movie" ? (
+                  <TmdbPosterFrame
+                    state={activeTmdbState}
+                    title={selectedStation.titleKo}
+                  />
+                ) : null}
               </div>
             </header>
 
@@ -1044,6 +1315,8 @@ export function MovieSubwayMap({
                 })}
               </div>
             </section>
+
+            <TmdbAvailabilityPanel state={activeTmdbState} />
           </div>
         ) : focusedLine && focusedLinePanel ? (
           <div className="grid gap-6">
