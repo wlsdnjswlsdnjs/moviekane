@@ -13,7 +13,7 @@ export function SiteHeader() {
           href="/"
           className="mk-focus max-w-full whitespace-nowrap text-center text-base font-bold text-foreground sm:absolute sm:left-8 sm:max-w-[42vw] sm:truncate sm:text-left sm:text-lg"
         >
-          시민 케인 앞에서 잠든 사람들
+          시민 케인 보다가 잠든 사람들
         </Link>
 
         <nav
