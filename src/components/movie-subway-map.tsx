@@ -1101,21 +1101,24 @@ export function MovieSubwayMap({
         ) : (
           <div className="grid gap-6">
             <header className="grid gap-5 border-b border-line pb-5">
-              <h2 className="break-keep text-2xl font-black leading-tight sm:text-3xl">
-                영화가 어려웠던 게 아니라,
-                <br />
-                첫 역이 멀었을지도.
-              </h2>
+              <div className="grid gap-3">
+                <h2 className="break-keep text-2xl font-black leading-tight sm:text-3xl">
+                  넷플릭스에서 30분 고르다 지친 사람들을 위한 지도
+                </h2>
+                <p className="break-keep text-sm font-semibold leading-6 text-muted">
+                  오늘 볼 영화 하나 고르고, 마음에 들면 다음역으로 가세요.
+                </p>
+              </div>
               <ol className="grid gap-3 text-sm leading-6">
                 <li className="grid grid-cols-[1.75rem_1fr] gap-3">
                   <span className="font-black text-muted">1</span>
                   <p>
                     <span className="font-black text-foreground">
-                      출발역을 고릅니다.
+                      지금 끌리는 첫 역을 고르세요.
                     </span>
                     <br />
                     <span className="text-muted">
-                      아래 첫차 후보나 지도 위 영화역을 눌러보세요.
+                      웃고 싶은지, 몰입하고 싶은지, 고전을 깨고 싶은지만 정하면 됩니다.
                     </span>
                   </p>
                 </li>
@@ -1123,11 +1126,11 @@ export function MovieSubwayMap({
                   <span className="font-black text-muted">2</span>
                   <p>
                     <span className="font-black text-foreground">
-                      다음역을 확인합니다.
+                      다음역처럼 한 편씩 이어 보세요.
                     </span>
                     <br />
                     <span className="text-muted">
-                      왜 이어지는지, 어디로 가는지 짧게 보여드립니다.
+                      비슷한 재미에서 조금씩 다른 감상으로 넘어가게 설계했습니다.
                     </span>
                   </p>
                 </li>
@@ -1135,11 +1138,11 @@ export function MovieSubwayMap({
                   <span className="font-black text-muted">3</span>
                   <p>
                     <span className="font-black text-foreground">
-                      별로면 갈아탑니다.
+                      안 맞으면 바로 환승하세요.
                     </span>
                     <br />
                     <span className="text-muted">
-                      환승역이나 노선 선을 눌러 다른 방향으로 가세요.
+                      재미없으면 실패가 아니라 다른 노선으로 갈아타면 됩니다.
                     </span>
                   </p>
                 </li>
