@@ -84,6 +84,25 @@ type TmdbRequestState = TmdbPanelState & {
   stationId: string | null;
 };
 
+type StartFinderStep = "question" | "result";
+
+type StartFinderOption = {
+  id: LineId;
+  label: string;
+  description: string;
+  targetLineId: LineId;
+  resultLines: [string, string];
+};
+
+type StationVoteValue = "fit" | "too_early" | "too_late" | "other_line";
+
+type StationVoteRecord = {
+  vote: StationVoteValue;
+  votedAt: string;
+};
+
+type StationVotes = Record<string, StationVoteRecord>;
+
 const MAP_WIDTH = 1680;
 const MAP_HEIGHT = 1360;
 const MIN_SCALE = 0.18;
@@ -97,6 +116,10 @@ const MOBILE_MAP_BOUNDS_PADDING_Y = 118;
 const COMPACT_DESKTOP_TRANSFORM: Transform = { x: 26, y: -36, scale: 0.48 };
 const DESKTOP_TRANSFORM: Transform = { x: 8, y: 28, scale: 0.58 };
 const WIDE_DESKTOP_TRANSFORM: Transform = { x: 48, y: 28, scale: 0.64 };
+const DESKTOP_PANEL_WIDTH = 420;
+const CAMERA_FOCUS_DURATION_MS = 520;
+const STATION_VOTES_STORAGE_KEY = "movie-subway-station-votes";
+const FEEDBACK_ENDPOINT = process.env.NEXT_PUBLIC_FEEDBACK_ENDPOINT ?? "";
 
 type StartSuggestion = {
   stationId: string;
@@ -126,6 +149,49 @@ const startSuggestions: StartSuggestion[] = [
     stationId: "the-bourne-identity",
     title: "본 아이덴티티",
     description: "바로 쫓기면서 출발",
+  },
+];
+
+const startFinderOptions: StartFinderOption[] = [
+  {
+    id: "momentum",
+    label: "일단 재밌어야 함",
+    description: "생각하기 전에 빨려들고 싶은 날",
+    targetLineId: "momentum",
+    resultLines: [
+      "일단 재밌어야 하는 사람은 여기서 타세요.",
+      "생각하기 전에 이미 쫓기고 있습니다.",
+    ],
+  },
+  {
+    id: "intro",
+    label: "가볍게 보고 싶음",
+    description: "웃으면서 출발하고 싶은 날",
+    targetLineId: "intro",
+    resultLines: [
+      "가볍게 타고 싶다면 여기서 출발하세요.",
+      "영화가 만든 규칙을 따라가는 재미가 가장 편하게 열립니다.",
+    ],
+  },
+  {
+    id: "classic",
+    label: "고전에 입문하고 싶음",
+    description: "시민 케인 직행은 아직 무섭지만",
+    targetLineId: "classic",
+    resultLines: [
+      "고전도 처음엔 바로 물리는 쪽부터.",
+      "시민 케인 직행은 잠시 접어둡니다.",
+    ],
+  },
+  {
+    id: "drama",
+    label: "보고 나서 좀 남는 게 좋음",
+    description: "집 가는 길에 생각나는 영화가 좋은 날",
+    targetLineId: "drama",
+    resultLines: [
+      "인물 따라가다 보면 마음이 열리는 쪽입니다.",
+      "조용히 남는 영화가 좋다면 여기서 타세요.",
+    ],
   },
 ];
 
@@ -187,6 +253,116 @@ const watchProviderGroups: Array<{ key: TmdbProviderGroup; label: string }> = [
   { key: "free", label: "무료" },
   { key: "ads", label: "광고" },
 ];
+
+const stationVoteOptions: Array<{
+  vote: StationVoteValue;
+  label: string;
+  description: string;
+}> = [
+  {
+    vote: "fit",
+    label: "좋아요",
+    description: "이 노선과 순서가 잘 맞아요.",
+  },
+  {
+    vote: "other_line",
+    label: "싫어요",
+    description: "노선이나 순서가 좀 어색해요.",
+  },
+];
+
+function isStationVoteValue(value: unknown): value is StationVoteValue {
+  return (
+    value === "fit" ||
+    value === "too_early" ||
+    value === "too_late" ||
+    value === "other_line"
+  );
+}
+
+function readStationVotes(): StationVotes {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  try {
+    const raw = window.localStorage.getItem(STATION_VOTES_STORAGE_KEY);
+
+    if (!raw) {
+      return {};
+    }
+
+    const parsed = JSON.parse(raw);
+
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+
+    return Object.entries(parsed as Record<string, Partial<StationVoteRecord>>).reduce(
+      (votes, [stationId, record]) => {
+        if (
+          record &&
+          typeof record === "object" &&
+          isStationVoteValue(record.vote) &&
+          typeof record.votedAt === "string"
+        ) {
+          votes[stationId] = {
+            vote: record.vote,
+            votedAt: record.votedAt,
+          };
+        }
+
+        return votes;
+      },
+      {} as StationVotes,
+    );
+  } catch {
+    return {};
+  }
+}
+
+function writeStationVotes(votes: StationVotes) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(STATION_VOTES_STORAGE_KEY, JSON.stringify(votes));
+  } catch {
+    // Voting should never block browsing the map.
+  }
+}
+
+function postStationVoteFeedback({
+  station,
+  vote,
+  createdAt,
+}: {
+  station: Station;
+  vote: StationVoteValue;
+  createdAt: string;
+}) {
+  if (!FEEDBACK_ENDPOINT) {
+    return;
+  }
+
+  void fetch(FEEDBACK_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      type: "station_vote",
+      stationId: station.id,
+      stationTitle: station.titleKo,
+      lineIds: station.lines,
+      vote,
+      createdAt,
+    }),
+  }).catch(() => {
+    // Local feedback has already been saved.
+  });
+}
 
 function stationRoleLabel(station: Station) {
   return station.stationKind === "empty"
@@ -383,6 +559,278 @@ function TmdbAvailabilityPanel({ state }: { state: TmdbPanelState }) {
         Metadata by {state.data.attribution.metadata}. Availability by{" "}
         {state.data.attribution.availability}.
       </p>
+    </section>
+  );
+}
+
+function RecommendationPosterFrame({
+  state,
+  title,
+}: {
+  state: TmdbPanelState;
+  title: string;
+}) {
+  const frameClassName =
+    "aspect-[2/3] w-28 overflow-hidden rounded-[3px] border border-line bg-surface shadow-[0_8px_18px_rgba(24,29,38,0.08)]";
+
+  if (state.status === "ready" && state.data.movie.posterUrl) {
+    return (
+      <div className={frameClassName}>
+        <Image
+          src={state.data.movie.posterUrl}
+          alt={`${title} 포스터`}
+          width={256}
+          height={384}
+          className="h-full w-full object-cover"
+          priority={false}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`${frameClassName} grid place-items-center px-3 text-center text-xs font-black text-muted`}
+      aria-label={
+        state.status === "loading" ? "포스터 불러오는 중" : "포스터 준비 중"
+      }
+    >
+      {state.status === "loading" ? "불러오는 중" : "포스터 없음"}
+    </div>
+  );
+}
+
+function StartStationFinderModal({
+  open,
+  step,
+  options,
+  lineById,
+  selectedOption,
+  station,
+  line,
+  previousStation,
+  nextStation,
+  tmdbState,
+  onClose,
+  onChoose,
+  onBackToQuestion,
+  onViewMap,
+}: {
+  open: boolean;
+  step: StartFinderStep;
+  options: StartFinderOption[];
+  lineById: Map<string, Line>;
+  selectedOption: StartFinderOption | null;
+  station: Station | null;
+  line: Line | null;
+  previousStation: Station | null;
+  nextStation: Station | null;
+  tmdbState: TmdbPanelState;
+  onClose: () => void;
+  onChoose: (option: StartFinderOption) => void;
+  onBackToQuestion: () => void;
+  onViewMap: () => void;
+}) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/28 px-4 py-6 backdrop-blur-[2px]">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="start-finder-title"
+        className="relative w-full max-w-[440px] rounded-[6px] border border-line bg-canvas p-5 shadow-[0_22px_60px_rgba(24,29,38,0.22)] sm:p-6"
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="mk-focus absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-[3px] border border-line bg-canvas text-sm font-black text-muted transition hover:bg-surface hover:text-foreground"
+          aria-label="팝업 닫기"
+        >
+          ×
+        </button>
+
+        {step === "question" ? (
+          <div className="grid gap-5">
+            <h2
+              id="start-finder-title"
+              className="break-keep pr-8 text-2xl font-black leading-tight text-foreground"
+            >
+              오늘은 어떤 영화가 끌리나요?
+            </h2>
+            <div className="grid gap-2">
+              {options.map((option) => {
+                const optionLine = lineById.get(option.targetLineId);
+                const lineColor = optionLine?.color ?? "var(--foreground)";
+
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => onChoose(option)}
+                    className="mk-focus grid min-h-16 grid-cols-[64px_1fr] items-center gap-3 rounded-[3px] border border-line bg-canvas px-3 py-3 text-left transition hover:border-line-strong hover:bg-surface"
+                  >
+                    <span className="relative h-8" aria-hidden="true">
+                      <span
+                        className="absolute left-0 top-1/2 h-1.5 w-full -translate-y-1/2 rounded-full"
+                        style={{ backgroundColor: lineColor }}
+                      />
+                      <span
+                        className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] bg-canvas shadow-[0_0_0_3px_var(--canvas)]"
+                        style={{ borderColor: lineColor }}
+                      />
+                    </span>
+                    <span className="grid min-w-0 gap-0.5">
+                      <span
+                        className="text-sm font-black"
+                        style={{ color: lineColor }}
+                      >
+                        {option.label}
+                      </span>
+                      <span className="text-xs font-semibold leading-5 text-muted">
+                        {option.description}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        {step === "result" ? (
+          selectedOption && station && line ? (
+            <div className="grid gap-5">
+              <div className="grid grid-cols-[1fr_auto] items-start gap-4 pr-8">
+                <div className="grid min-w-0 gap-2">
+                  <p className="text-xs font-black text-muted">오늘의 출발역은</p>
+                  <h2
+                    id="start-finder-title"
+                    className="break-keep text-3xl font-black leading-tight text-foreground [overflow-wrap:anywhere]"
+                  >
+                    {stationMapLabel(station)}
+                  </h2>
+                  <p className="text-sm font-semibold leading-6 text-muted">
+                    {selectedOption.resultLines[0]}
+                    <br />
+                    {selectedOption.resultLines[1]}
+                  </p>
+                </div>
+                <RecommendationPosterFrame
+                  state={tmdbState}
+                  title={station.titleKo}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <div
+                  className="h-1 rounded-full"
+                  style={{ backgroundColor: line.color }}
+                />
+                <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2">
+                  <div className="grid min-h-16 content-center gap-1 rounded-[3px] border border-line bg-surface px-2 py-2 text-left">
+                    <span className="text-[10px] font-black text-muted">이전역</span>
+                    <span className="break-words text-xs font-black text-foreground [overflow-wrap:anywhere]">
+                      {previousStation ? stationMapLabel(previousStation) : "출발역"}
+                    </span>
+                  </div>
+                  <div
+                    className="grid min-h-16 min-w-24 place-items-center rounded-[3px] border-2 bg-canvas px-2 py-2 text-center"
+                    style={{ borderColor: line.color }}
+                  >
+                    <span className="text-[10px] font-black text-muted">현재역</span>
+                    <span className="break-words text-sm font-black text-foreground [overflow-wrap:anywhere]">
+                      {stationMapLabel(station)}
+                    </span>
+                  </div>
+                  <div className="grid min-h-16 content-center gap-1 rounded-[3px] border border-line bg-surface px-2 py-2 text-right">
+                    <span className="text-[10px] font-black text-muted">다음역</span>
+                    <span className="break-words text-xs font-black text-foreground [overflow-wrap:anywhere]">
+                      {nextStation ? stationMapLabel(nextStation) : "종착역"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 border-t border-line pt-4">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="font-black text-muted">탑승 노선</span>
+                  <span className="font-black text-foreground">{line.name}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onViewMap}
+                  aria-label={`${station.titleKo} 노선도에서 보기`}
+                  className="mk-focus inline-flex min-h-11 items-center justify-center rounded-[3px] bg-foreground px-4 text-sm font-black text-canvas transition hover:bg-primary"
+                >
+                  지도에서 보기
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-4 pr-8">
+              <h2
+                id="start-finder-title"
+                className="text-2xl font-black text-foreground"
+              >
+                역 정보를 찾지 못했습니다.
+              </h2>
+              <button
+                type="button"
+                onClick={onBackToQuestion}
+                className="mk-focus min-h-11 rounded-[3px] border border-line bg-canvas px-4 text-sm font-black text-foreground transition hover:bg-surface"
+              >
+                다시 고르기
+              </button>
+            </div>
+          )
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+function StationPlacementVote({
+  station,
+  voteRecord,
+  onVote,
+}: {
+  station: Station;
+  voteRecord?: StationVoteRecord;
+  onVote: (station: Station, vote: StationVoteValue) => void;
+}) {
+  return (
+    <section className="grid gap-3 border-t border-line pt-5">
+      <h3 className="text-xs font-black text-muted">이 역 배치 어때요?</h3>
+      <div className="grid grid-cols-2 gap-2">
+        {stationVoteOptions.map((option) => {
+          const isActive = voteRecord?.vote === option.vote;
+
+          return (
+            <button
+              key={option.vote}
+              type="button"
+              aria-pressed={isActive}
+              aria-label={`${option.label}: ${option.description}`}
+              onClick={() => onVote(station, option.vote)}
+              className={`mk-focus min-h-10 rounded-[3px] border px-3 text-sm font-black transition ${
+                isActive
+                  ? "border-foreground bg-foreground text-canvas"
+                  : "border-line bg-canvas text-foreground hover:bg-surface"
+              }`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+      {voteRecord ? (
+        <p className="text-xs font-semibold leading-5 text-muted">
+          의견 접수됨. 영화 지하철은 계속 공사 중입니다.
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -716,6 +1164,17 @@ export function MovieSubwayMap({
     status: "idle",
     stationId: null,
   });
+  const [stationVotes, setStationVotes] = useState<StationVotes>({});
+  const [startFinderOpen, setStartFinderOpen] = useState(true);
+  const [startFinderStep, setStartFinderStep] =
+    useState<StartFinderStep>("question");
+  const [selectedStartFinderOptionId, setSelectedStartFinderOptionId] =
+    useState<LineId | null>(null);
+  const [startFinderTmdbState, setStartFinderTmdbState] =
+    useState<TmdbRequestState>({
+      status: "idle",
+      stationId: null,
+    });
   const viewportWidth = useSyncExternalStore(
     subscribeToViewport,
     getViewportWidth,
@@ -734,6 +1193,9 @@ export function MovieSubwayMap({
   const [customTransform, setCustomTransform] = useState<Transform | null>(null);
   const transform = customTransform ?? defaultTransform;
   const transformRef = useRef(transform);
+  const mapViewportRef = useRef<HTMLDivElement | null>(null);
+  const cameraAnimationTimeoutRef = useRef<number | null>(null);
+  const [cameraTransitioning, setCameraTransitioning] = useState(false);
   const dragState = useRef<{
     pointerId: number;
     startX: number;
@@ -745,6 +1207,39 @@ export function MovieSubwayMap({
   const activePointers = useRef<Map<number, PointerPosition>>(new Map());
   const pinchState = useRef<PinchState | null>(null);
   const suppressNextClick = useRef(false);
+  const selectedStartFinderOption = selectedStartFinderOptionId
+    ? startFinderOptions.find((option) => option.id === selectedStartFinderOptionId) ??
+      null
+    : null;
+  const startFinderLine = selectedStartFinderOption
+    ? lineById.get(selectedStartFinderOption.targetLineId) ?? null
+    : null;
+  const startFinderStationId =
+    startFinderLine?.stationIds[0] ?? startFinderLine?.startStationId ?? null;
+  const startFinderStation = startFinderStationId
+    ? stationById.get(startFinderStationId) ?? null
+    : null;
+  const startFinderStationIndex =
+    startFinderLine && startFinderStation
+      ? startFinderLine.stationIds.indexOf(startFinderStation.id)
+      : -1;
+  const startFinderPreviousStation =
+    startFinderLine && startFinderStationIndex > 0
+      ? stationById.get(startFinderLine.stationIds[startFinderStationIndex - 1]) ?? null
+      : null;
+  const startFinderNextStation =
+    startFinderLine &&
+    startFinderStationIndex >= 0 &&
+    startFinderStationIndex < startFinderLine.stationIds.length - 1
+      ? stationById.get(startFinderLine.stationIds[startFinderStationIndex + 1]) ??
+        null
+      : null;
+  const activeStartFinderTmdbState: TmdbPanelState =
+    !startFinderStation
+      ? { status: "idle" }
+      : startFinderTmdbState.stationId === startFinderStation.id
+        ? startFinderTmdbState
+        : { status: "loading" };
   const selectedStation = selectedStationId
     ? stationById.get(selectedStationId) ?? null
     : null;
@@ -799,6 +1294,22 @@ export function MovieSubwayMap({
   }, [transform]);
 
   useEffect(() => {
+    return () => {
+      if (cameraAnimationTimeoutRef.current) {
+        window.clearTimeout(cameraAnimationTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setStationVotes(readStationVotes());
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
     if (!selectedTmdbStationId) {
       return;
     }
@@ -842,6 +1353,54 @@ export function MovieSubwayMap({
     return () => controller.abort();
   }, [selectedTmdbStationId]);
 
+  useEffect(() => {
+    if (
+      !startFinderOpen ||
+      startFinderStep !== "result" ||
+      !startFinderStationId
+    ) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    fetch(`/api/tmdb/station/${encodeURIComponent(startFinderStationId)}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = await response.json();
+
+        if (!response.ok) {
+          setStartFinderTmdbState({
+            status:
+              payload.status === "missing_config" ? "missing-config" : "error",
+            stationId: startFinderStationId,
+            message: payload.message ?? "TMDb 정보를 불러오지 못했습니다.",
+          });
+          return;
+        }
+
+        setStartFinderTmdbState({
+          status: "ready",
+          stationId: startFinderStationId,
+          data: payload as TmdbStationData,
+        });
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+
+        setStartFinderTmdbState({
+          status: "error",
+          stationId: startFinderStationId,
+          message: "TMDb 정보를 불러오지 못했습니다.",
+        });
+      });
+
+    return () => controller.abort();
+  }, [startFinderOpen, startFinderStep, startFinderStationId]);
+
   function lineIsInFocus(lineId: LineId) {
     return !focusedLineId || focusedLineId === lineId;
   }
@@ -858,7 +1417,78 @@ export function MovieSubwayMap({
     setFocusedLineId((current) => (current === lineId ? null : lineId));
   }
 
-  function selectStation(station: Station, preferredLineId?: LineId) {
+  function mapViewportMetrics() {
+    const rect = mapViewportRef.current?.getBoundingClientRect();
+    const width = rect?.width ?? viewportWidth;
+    const height =
+      rect?.height ??
+      (viewportWidth < 640
+        ? getMobileMapHeight(viewportHeight)
+        : Math.max(viewportHeight - 72, 1));
+    const coveredPanelWidth =
+      viewportWidth >= 640 ? Math.min(DESKTOP_PANEL_WIDTH, width) : 0;
+    const visibleWidth = Math.max(width - coveredPanelWidth, 1);
+
+    return {
+      centerX: visibleWidth / 2,
+      centerY: height / 2,
+    };
+  }
+
+  function focusedStationScale() {
+    if (viewportWidth < 640) {
+      return 0.82;
+    }
+
+    if (viewportWidth < 1200) {
+      return 0.96;
+    }
+
+    return 1.08;
+  }
+
+  function stationFocusedTransform(station: Station, scale?: number): Transform {
+    const nextScale = clamp(scale ?? focusedStationScale(), MIN_SCALE, MAX_SCALE);
+    const { centerX, centerY } = mapViewportMetrics();
+
+    return {
+      x: centerX - station.x * nextScale,
+      y: centerY - station.y * nextScale,
+      scale: nextScale,
+    };
+  }
+
+  function animateMapTransform(nextTransform: Transform) {
+    if (cameraAnimationTimeoutRef.current) {
+      window.clearTimeout(cameraAnimationTimeoutRef.current);
+    }
+
+    setCameraTransitioning(true);
+    setMapTransform(nextTransform);
+    cameraAnimationTimeoutRef.current = window.setTimeout(() => {
+      setCameraTransitioning(false);
+      cameraAnimationTimeoutRef.current = null;
+    }, CAMERA_FOCUS_DURATION_MS);
+  }
+
+  function stopCameraTransition() {
+    if (cameraAnimationTimeoutRef.current) {
+      window.clearTimeout(cameraAnimationTimeoutRef.current);
+      cameraAnimationTimeoutRef.current = null;
+    }
+
+    setCameraTransitioning(false);
+  }
+
+  function focusStationOnMap(station: Station, scale?: number) {
+    animateMapTransform(stationFocusedTransform(station, scale));
+  }
+
+  function selectStation(
+    station: Station,
+    preferredLineId?: LineId,
+    options?: { focusMap?: boolean; scale?: number },
+  ) {
     setSelectedStationId(station.id);
     const nextLineId =
       preferredLineId && station.lines.includes(preferredLineId)
@@ -869,14 +1499,75 @@ export function MovieSubwayMap({
       nextLineId ??
       (current && station.lines.includes(current) ? current : station.lines[0]),
     );
+
+    if (options?.focusMap) {
+      focusStationOnMap(station, options.scale);
+    }
   }
 
-  function selectStationById(stationId: string, preferredLineId?: LineId) {
+  function selectStationById(
+    stationId: string,
+    preferredLineId?: LineId,
+    options?: { focusMap?: boolean; scale?: number },
+  ) {
     const station = stationById.get(stationId);
 
     if (station) {
-      selectStation(station, preferredLineId);
+      selectStation(station, preferredLineId, options);
     }
+  }
+
+  function openStartFinder() {
+    setSelectedStartFinderOptionId(null);
+    setStartFinderStep("question");
+    setStartFinderOpen(true);
+  }
+
+  function chooseStartFinderOption(option: StartFinderOption) {
+    const line = lineById.get(option.targetLineId);
+    const stationId = line?.stationIds[0] ?? line?.startStationId ?? null;
+
+    if (stationId) {
+      setStartFinderTmdbState({
+        status: "loading",
+        stationId,
+      });
+    }
+
+    setSelectedStartFinderOptionId(option.id);
+    setStartFinderStep("result");
+  }
+
+  function viewStartFinderStationOnMap() {
+    if (!startFinderStation || !startFinderLine) {
+      return;
+    }
+
+    selectStation(startFinderStation, startFinderLine.id, {
+      focusMap: true,
+      scale: focusedStationScale(),
+    });
+    setFocusedLineId(startFinderLine.id);
+    setStartFinderOpen(false);
+  }
+
+  function handleStationVote(station: Station, vote: StationVoteValue) {
+    const votedAt = new Date().toISOString();
+    const nextVotes = {
+      ...stationVotes,
+      [station.id]: {
+        vote,
+        votedAt,
+      },
+    };
+
+    setStationVotes(nextVotes);
+    writeStationVotes(nextVotes);
+    postStationVoteFeedback({
+      station,
+      vote,
+      createdAt: votedAt,
+    });
   }
 
   function setMapTransform(nextTransform: Transform) {
@@ -987,6 +1678,7 @@ export function MovieSubwayMap({
 
   function handleWheel(event: WheelEvent<HTMLDivElement>) {
     event.preventDefault();
+    stopCameraTransition();
     const delta = event.deltaY > 0 ? 0.9 : 1.1;
 
     zoomAt(
@@ -998,6 +1690,7 @@ export function MovieSubwayMap({
   }
 
   function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
+    stopCameraTransition();
     const target = event.target as HTMLElement;
     const isMapControlTarget = Boolean(
       target.closest("[data-station-button]") || target.closest("[data-line-focus]"),
@@ -1138,6 +1831,7 @@ export function MovieSubwayMap({
   function nudgeZoom(delta: number) {
     const current = transformRef.current;
 
+    stopCameraTransition();
     setMapTransform({
       ...current,
       scale: clamp(current.scale + delta, MIN_SCALE, MAX_SCALE),
@@ -1149,7 +1843,25 @@ export function MovieSubwayMap({
       id="map"
       className="flex min-h-[calc(100svh-88px)] flex-col overflow-visible bg-canvas sm:relative sm:block sm:h-[calc(100vh-72px)] sm:min-h-0 sm:overflow-hidden"
     >
+      <StartStationFinderModal
+        open={startFinderOpen}
+        step={startFinderStep}
+        options={startFinderOptions}
+        lineById={lineById}
+        selectedOption={selectedStartFinderOption}
+        station={startFinderStation}
+        line={startFinderLine}
+        previousStation={startFinderPreviousStation}
+        nextStation={startFinderNextStation}
+        tmdbState={activeStartFinderTmdbState}
+        onClose={() => setStartFinderOpen(false)}
+        onChoose={chooseStartFinderOption}
+        onBackToQuestion={() => setStartFinderStep("question")}
+        onViewMap={viewStartFinderStationOnMap}
+      />
+
       <div
+        ref={mapViewportRef}
         className="relative h-[52svh] min-h-[400px] max-h-[480px] cursor-grab overflow-hidden border-b border-line touch-none active:cursor-grabbing sm:absolute sm:inset-0 sm:h-auto sm:min-h-0 sm:max-h-none sm:border-b-0"
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
@@ -1159,7 +1871,9 @@ export function MovieSubwayMap({
         onClickCapture={handleClickCapture}
       >
         <div
-          className="absolute left-0 top-0"
+          className={`absolute left-0 top-0 ${
+            cameraTransitioning ? "transition-transform duration-500 ease-out" : ""
+          }`}
           style={{
             width: MAP_WIDTH,
             height: MAP_HEIGHT,
@@ -1316,6 +2030,16 @@ export function MovieSubwayMap({
         </button>
       </div>
 
+      {!startFinderOpen ? (
+        <button
+          type="button"
+          onClick={openStartFinder}
+          className="mk-focus pointer-events-auto absolute left-3 top-14 z-20 min-h-9 rounded-md border border-line bg-canvas/94 px-3 text-xs font-black text-foreground shadow-[0_3px_10px_rgba(24,29,38,0.08)] backdrop-blur transition hover:bg-surface sm:left-5 sm:top-16"
+        >
+          내 출발역 찾기
+        </button>
+      ) : null}
+
       <aside
         id="station-info"
         aria-label="영화역 정보"
@@ -1377,8 +2101,10 @@ export function MovieSubwayMap({
                   disabled={!previousStation || !currentLineId}
                   onClick={() => {
                     if (previousStation && currentLineId) {
-                      setSelectedLineId(currentLineId);
-                      setSelectedStationId(previousStation.id);
+                      selectStation(previousStation, currentLineId, {
+                        focusMap: true,
+                        scale: Math.max(transformRef.current.scale, focusedStationScale()),
+                      });
                     }
                   }}
                   className="mk-focus grid min-h-20 content-center gap-1 rounded-[3px] border border-line bg-surface px-3 py-3 text-left transition enabled:hover:bg-canvas disabled:opacity-45"
@@ -1403,8 +2129,10 @@ export function MovieSubwayMap({
                   disabled={!nextStation || !currentLineId}
                   onClick={() => {
                     if (nextStation && currentLineId) {
-                      setSelectedLineId(currentLineId);
-                      setSelectedStationId(nextStation.id);
+                      selectStation(nextStation, currentLineId, {
+                        focusMap: true,
+                        scale: Math.max(transformRef.current.scale, focusedStationScale()),
+                      });
                     }
                   }}
                   className="mk-focus grid min-h-20 content-center gap-1 rounded-[3px] border border-line bg-surface px-3 py-3 text-right transition enabled:hover:bg-canvas disabled:opacity-45"
@@ -1503,8 +2231,10 @@ export function MovieSubwayMap({
                       key={line.id}
                       type="button"
                       onClick={() => {
-                        setSelectedLineId(line.id);
-                        setSelectedStationId(line.startStationId);
+                        selectStationById(line.startStationId, line.id, {
+                          focusMap: true,
+                          scale: focusedStationScale(),
+                        });
                       }}
                       className={`mk-focus grid gap-1.5 text-left text-xs font-bold transition ${
                         isActive ? "text-foreground" : "text-muted hover:text-foreground"
@@ -1523,6 +2253,14 @@ export function MovieSubwayMap({
             </section>
 
             <TmdbAvailabilityPanel state={activeTmdbState} />
+
+            {selectedStation.stationKind === "movie" ? (
+              <StationPlacementVote
+                station={selectedStation}
+                voteRecord={stationVotes[selectedStation.id]}
+                onVote={handleStationVote}
+              />
+            ) : null}
           </div>
         ) : focusedLine && focusedLinePanel ? (
           <div className="grid gap-6">
@@ -1642,7 +2380,10 @@ export function MovieSubwayMap({
                       key={suggestion.stationId}
                       type="button"
                       onClick={() =>
-                        selectStationById(suggestion.stationId, suggestion.lineId)
+                        selectStationById(suggestion.stationId, suggestion.lineId, {
+                          focusMap: true,
+                          scale: focusedStationScale(),
+                        })
                       }
                       className="mk-focus grid min-h-14 grid-cols-[72px_1fr] items-center gap-3 border-b border-line py-2.5 text-left transition last:border-b-0 hover:bg-surface sm:min-h-0"
                     >

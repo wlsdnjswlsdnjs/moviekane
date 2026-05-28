@@ -1,0 +1,77 @@
+<svg width="1200" height="1200" viewBox="0 0 1200 1200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="1200" fill="#F5F4F0"/>
+  <rect x="58" y="58" width="1084" height="1084" rx="150" fill="#FFFFFF"/>
+  <path d="M170 890C270 760 372 742 474 838C578 936 676 912 770 766C856 632 938 584 1042 646" stroke="#E9E7E1" stroke-width="34" stroke-linecap="round"/>
+  <path d="M170 890C270 760 372 742 474 838C578 936 676 912 770 766C856 632 938 584 1042 646" stroke="#F5F4F0" stroke-width="18" stroke-linecap="round"/>
+  <g transform="translate(114 110)">
+    <rect width="316" height="58" rx="29" fill="#181D26"/>
+    <text x="158" y="38" text-anchor="middle" font-family="Apple SD Gothic Neo, Pretendard, Inter, Arial, sans-serif" font-size="25" font-weight="800" fill="#FFFFFF">MOVIE SUBWAY</text>
+  </g>
+  <text x="116" y="270" font-family="Apple SD Gothic Neo, Pretendard, Inter, Arial, sans-serif" font-size="86" font-weight="900" fill="#181D26" letter-spacing="-2">
+    <tspan x="116" dy="0">영화 고르기</tspan>
+    <tspan x="116" dy="98">지하철처럼</tspan>
+  </text>
+  <text x="120" y="502" font-family="Apple SD Gothic Neo, Pretendard, Inter, Arial, sans-serif" font-size="37" font-weight="700" fill="#555B65">
+    <tspan x="120" dy="0">넷플릭스에서 30분 헤매는 대신</tspan>
+    <tspan x="120" dy="52">오늘 볼 첫 역만 고르세요.</tspan>
+  </text>
+  <g transform="translate(124 650)">
+    <path d="M50 92H318C408 92 434 192 516 192H842" stroke="#B63A1B" stroke-width="22" stroke-linecap="round"/>
+    <path d="M86 284H282C382 284 416 190 516 192C620 194 660 318 752 318H890" stroke="#2563EB" stroke-width="22" stroke-linecap="round"/>
+    <path d="M42 424H316C416 424 456 352 536 352H926" stroke="#0F5132" stroke-width="22" stroke-linecap="round"/>
+    <path d="M616 28V192C616 260 716 282 716 350V456" stroke="#D6A13A" stroke-width="22" stroke-linecap="round"/>
+    <g fill="#FFFFFF" stroke-width="10">
+      <circle cx="50" cy="92" r="26" stroke="#B63A1B"/>
+      <circle cx="188" cy="92" r="26" stroke="#B63A1B"/>
+      <circle cx="318" cy="92" r="26" stroke="#B63A1B"/>
+      <circle cx="516" cy="192" r="34" stroke="#B63A1B"/>
+      <circle cx="842" cy="192" r="26" stroke="#B63A1B"/>
+      <circle cx="86" cy="284" r="26" stroke="#2563EB"/>
+      <circle cx="282" cy="284" r="26" stroke="#2563EB"/>
+      <circle cx="516" cy="192" r="24" stroke="#2563EB"/>
+      <circle cx="752" cy="318" r="26" stroke="#2563EB"/>
+      <circle cx="890" cy="318" r="26" stroke="#2563EB"/>
+      <circle cx="42" cy="424" r="26" stroke="#0F5132"/>
+      <circle cx="316" cy="424" r="26" stroke="#0F5132"/>
+      <circle cx="536" cy="352" r="26" stroke="#0F5132"/>
+      <circle cx="926" cy="352" r="26" stroke="#0F5132"/>
+      <circle cx="616" cy="28" r="26" stroke="#D6A13A"/>
+      <circle cx="616" cy="192" r="26" stroke="#D6A13A"/>
+      <circle cx="716" cy="350" r="26" stroke="#D6A13A"/>
+      <circle cx="716" cy="456" r="26" stroke="#D6A13A"/>
+    </g>
+    <g font-family="Apple SD Gothic Neo, Pretendard, Inter, Arial, sans-serif" font-size="24" font-weight="900">
+      <rect x="14" y="18" width="132" height="46" rx="12" fill="#FFFFFF" stroke="#B63A1B" stroke-width="4"/>
+      <text x="80" y="50" text-anchor="middle" fill="#B63A1B">입문선</text>
+      <rect x="20" y="214" width="132" height="46" rx="12" fill="#FFFFFF" stroke="#2563EB" stroke-width="4"/>
+      <text x="86" y="246" text-anchor="middle" fill="#2563EB">드라마선</text>
+      <rect x="5" y="324" width="132" height="46" rx="12" fill="#FFFFFF" stroke="#0F5132" stroke-width="4"/>
+      <text x="71" y="356" text-anchor="middle" fill="#0F5132">고전선</text>
+      <rect x="652" y="4" width="132" height="46" rx="12" fill="#FFFFFF" stroke="#D6A13A" stroke-width="4"/>
+      <text x="718" y="36" text-anchor="middle" fill="#B67E16">몰입선</text>
+    </g>
+  </g>
+  <g transform="translate(716 158)">
+    <rect width="320" height="412" rx="48" fill="#181D26"/>
+    <rect x="34" y="34" width="252" height="344" rx="30" fill="#F5F4F0"/>
+    <path d="M78 126H236" stroke="#B63A1B" stroke-width="16" stroke-linecap="round"/>
+    <path d="M78 184H214" stroke="#2563EB" stroke-width="16" stroke-linecap="round"/>
+    <path d="M78 242H246" stroke="#0F5132" stroke-width="16" stroke-linecap="round"/>
+    <path d="M78 300H196" stroke="#D6A13A" stroke-width="16" stroke-linecap="round"/>
+    <g fill="#FFFFFF" stroke-width="8">
+      <circle cx="78" cy="126" r="19" stroke="#B63A1B"/>
+      <circle cx="236" cy="126" r="19" stroke="#B63A1B"/>
+      <circle cx="78" cy="184" r="19" stroke="#2563EB"/>
+      <circle cx="214" cy="184" r="19" stroke="#2563EB"/>
+      <circle cx="78" cy="242" r="19" stroke="#0F5132"/>
+      <circle cx="246" cy="242" r="19" stroke="#0F5132"/>
+      <circle cx="78" cy="300" r="19" stroke="#D6A13A"/>
+      <circle cx="196" cy="300" r="19" stroke="#D6A13A"/>
+    </g>
+    <text x="160" y="82" text-anchor="middle" font-family="Apple SD Gothic Neo, Pretendard, Inter, Arial, sans-serif" font-size="28" font-weight="900" fill="#181D26">오늘의 첫 역</text>
+  </g>
+  <g transform="translate(118 1044)">
+    <rect width="964" height="72" rx="36" fill="#181D26"/>
+    <text x="482" y="48" text-anchor="middle" font-family="Apple SD Gothic Neo, Pretendard, Inter, Arial, sans-serif" font-size="30" font-weight="900" fill="#FFFFFF">시민 케인 보다가 잠든 사람들을 위한 지도</text>
+  </g>
+</svg>
