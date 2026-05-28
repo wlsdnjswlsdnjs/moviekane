@@ -1,0 +1,219 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css");
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #181d26;
+  --canvas: #ffffff;
+  --surface: #f8fafc;
+  --surface-soft: #f8fafc;
+  --surface-muted: #e0e2e6;
+  --surface-dark: #181d26;
+  --surface-dark-elevated: #1d1f25;
+  --line: #dddddd;
+  --line-soft: rgba(24, 29, 38, 0.08);
+  --line-strong: #9297a0;
+  --muted: #41454d;
+  --soft: #6f747c;
+  --primary: #181d26;
+  --primary-pressed: #0d1218;
+  --link: #1b61c9;
+  --link-active: #1a3866;
+  --info: #254fad;
+  --info-border: #458fff;
+  --success: #006400;
+  --success-border: #39bf45;
+  --signature-coral: #aa2d00;
+  --signature-forest: #0a2e0e;
+  --signature-cream: #f5e9d4;
+  --signature-peach: #fcab79;
+  --signature-mint: #a8d8c4;
+  --signature-yellow: #f4d35e;
+  --signature-mustard: #d9a441;
+  --brand-navy: var(--surface-dark);
+  --brand-navy-mid: var(--surface-dark-elevated);
+  --brand-orange: var(--signature-coral);
+  --brand-pink: var(--signature-peach);
+  --brand-purple: var(--signature-mustard);
+  --brand-purple-800: var(--primary-pressed);
+  --brand-teal: var(--signature-forest);
+  --brand-green: var(--signature-forest);
+  --brand-yellow: var(--signature-yellow);
+  --brand-brown: var(--signature-coral);
+  --tint-peach: var(--signature-peach);
+  --tint-rose: var(--signature-cream);
+  --tint-mint: var(--signature-mint);
+  --tint-lavender: var(--surface);
+  --tint-sky: var(--surface);
+  --tint-yellow: var(--signature-yellow);
+  --tint-yellow-bold: var(--signature-mustard);
+  --tint-cream: var(--signature-cream);
+  --tint-gray: var(--surface-muted);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-soft: var(--surface-soft);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-dark: var(--surface-dark);
+  --color-surface-dark-elevated: var(--surface-dark-elevated);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-line-strong: var(--line-strong);
+  --color-muted: var(--muted);
+  --color-soft: var(--soft);
+  --color-primary: var(--primary);
+  --color-primary-pressed: var(--primary-pressed);
+  --color-link: var(--link);
+  --color-link-active: var(--link-active);
+  --color-info: var(--info);
+  --color-info-border: var(--info-border);
+  --color-success: var(--success);
+  --color-success-border: var(--success-border);
+  --color-signature-coral: var(--signature-coral);
+  --color-signature-forest: var(--signature-forest);
+  --color-signature-cream: var(--signature-cream);
+  --color-signature-peach: var(--signature-peach);
+  --color-signature-mint: var(--signature-mint);
+  --color-signature-yellow: var(--signature-yellow);
+  --color-signature-mustard: var(--signature-mustard);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-navy-mid: var(--brand-navy-mid);
+  --color-brand-orange: var(--brand-orange);
+  --color-brand-pink: var(--brand-pink);
+  --color-brand-purple: var(--brand-purple);
+  --color-brand-purple-800: var(--brand-purple-800);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-green: var(--brand-green);
+  --color-brand-yellow: var(--brand-yellow);
+  --color-brand-brown: var(--brand-brown);
+  --color-tint-peach: var(--tint-peach);
+  --color-tint-rose: var(--tint-rose);
+  --color-tint-mint: var(--tint-mint);
+  --color-tint-lavender: var(--tint-lavender);
+  --color-tint-sky: var(--tint-sky);
+  --color-tint-yellow: var(--tint-yellow);
+  --color-tint-yellow-bold: var(--tint-yellow-bold);
+  --color-tint-cream: var(--tint-cream);
+  --color-tint-gray: var(--tint-gray);
+  --font-sans: "Pretendard", "SUIT", "Apple SD Gothic Neo", "Noto Sans KR",
+    "Malgun Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", "SF Mono", ui-monospace, monospace;
+}
+
+html {
+  background: var(--background);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--foreground);
+  color: var(--canvas);
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  font: inherit;
+}
+
+.mk-container {
+  width: min(100% - 32px, 1280px);
+  margin-inline: auto;
+}
+
+@media (min-width: 768px) {
+  .mk-container {
+    width: min(100% - 64px, 1280px);
+  }
+}
+
+.mk-eyebrow {
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.mk-display {
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+
+.mk-body {
+  color: var(--muted);
+  font-size: 0.9375rem;
+  font-weight: 400;
+  line-height: 1.75;
+}
+
+.mk-focus {
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+}
+
+.mk-focus:focus-visible {
+  outline-color: var(--info-border);
+}
+
+.film-still {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background-color: var(--surface-dark);
+}
+
+.film-still::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  opacity: 0.18;
+  background-image:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.22) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+.film-still::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background:
+    radial-gradient(circle at 72% 24%, rgba(255, 255, 255, 0.18), transparent 18%),
+    linear-gradient(140deg, transparent, rgba(0, 0, 0, 0.4));
+}
+
+.film-still-seats {
+  background-image: linear-gradient(145deg, #181d26, #0d1218);
+}
+
+.film-still-window {
+  background-image: linear-gradient(145deg, #0a2e0e, #181d26);
+}
+
+.film-still-flare {
+  background-image: linear-gradient(145deg, #aa2d00, #181d26);
+}
+
+.film-still-screen {
+  background-image: linear-gradient(145deg, #f5e9d4, #ffffff);
+}
+
+.film-still-grain {
+  background-image: linear-gradient(145deg, #1d1f25, #333840);
+}
