@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type MouseEvent,
   type PointerEvent,
   type ReactNode,
   type WheelEvent,
@@ -17,6 +18,19 @@ type Transform = {
   x: number;
   y: number;
   scale: number;
+};
+
+type PointerPosition = {
+  clientX: number;
+  clientY: number;
+};
+
+type PinchState = {
+  startDistance: number;
+  startMidpointX: number;
+  startMidpointY: number;
+  origin: Transform;
+  moved: boolean;
 };
 
 type MovieSubwayMapProps = {
@@ -453,6 +467,17 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function distanceBetween(a: PointerPosition, b: PointerPosition) {
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
+
+function midpointBetween(a: PointerPosition, b: PointerPosition) {
+  return {
+    clientX: (a.clientX + b.clientX) / 2,
+    clientY: (a.clientY + b.clientY) / 2,
+  };
+}
+
 function linePoints(line: Line, stationById: Map<string, Station>) {
   if (line.pathPoints?.length) {
     return line.pathPoints.map((point) => `${point.x},${point.y}`).join(" ");
@@ -708,6 +733,7 @@ export function MovieSubwayMap({
   );
   const [customTransform, setCustomTransform] = useState<Transform | null>(null);
   const transform = customTransform ?? defaultTransform;
+  const transformRef = useRef(transform);
   const dragState = useRef<{
     pointerId: number;
     startX: number;
@@ -716,6 +742,9 @@ export function MovieSubwayMap({
     originY: number;
     moved: boolean;
   } | null>(null);
+  const activePointers = useRef<Map<number, PointerPosition>>(new Map());
+  const pinchState = useRef<PinchState | null>(null);
+  const suppressNextClick = useRef(false);
   const selectedStation = selectedStationId
     ? stationById.get(selectedStationId) ?? null
     : null;
@@ -764,6 +793,10 @@ export function MovieSubwayMap({
     () => new Set(unavailableStationIds),
     [unavailableStationIds],
   );
+
+  useEffect(() => {
+    transformRef.current = transform;
+  }, [transform]);
 
   useEffect(() => {
     if (!selectedTmdbStationId) {
@@ -846,6 +879,92 @@ export function MovieSubwayMap({
     }
   }
 
+  function setMapTransform(nextTransform: Transform) {
+    transformRef.current = nextTransform;
+    setCustomTransform(nextTransform);
+  }
+
+  function pointerPair() {
+    const pointers = Array.from(activePointers.current.values());
+
+    if (pointers.length < 2) {
+      return null;
+    }
+
+    return [pointers[0], pointers[1]] as const;
+  }
+
+  function startPinch(element: HTMLElement) {
+    const pair = pointerPair();
+
+    if (!pair) {
+      return;
+    }
+
+    const [firstPointer, secondPointer] = pair;
+    const rect = element.getBoundingClientRect();
+    const midpoint = midpointBetween(firstPointer, secondPointer);
+    const startDistance = distanceBetween(firstPointer, secondPointer);
+
+    if (startDistance <= 0) {
+      return;
+    }
+
+    dragState.current = null;
+    pinchState.current = {
+      startDistance,
+      startMidpointX: midpoint.clientX - rect.left,
+      startMidpointY: midpoint.clientY - rect.top,
+      origin: transformRef.current,
+      moved: false,
+    };
+  }
+
+  function updatePinch(element: HTMLElement) {
+    const pair = pointerPair();
+    const pinch = pinchState.current;
+
+    if (!pair || !pinch) {
+      return;
+    }
+
+    const [firstPointer, secondPointer] = pair;
+    const rect = element.getBoundingClientRect();
+    const midpoint = midpointBetween(firstPointer, secondPointer);
+    const currentMidpointX = midpoint.clientX - rect.left;
+    const currentMidpointY = midpoint.clientY - rect.top;
+    const currentDistance = distanceBetween(firstPointer, secondPointer);
+    const scale = clamp(
+      pinch.origin.scale * (currentDistance / pinch.startDistance),
+      MIN_SCALE,
+      MAX_SCALE,
+    );
+    const ratio = scale / pinch.origin.scale;
+
+    if (
+      Math.abs(currentDistance - pinch.startDistance) > 3 ||
+      Math.hypot(
+        currentMidpointX - pinch.startMidpointX,
+        currentMidpointY - pinch.startMidpointY,
+      ) > 4
+    ) {
+      pinch.moved = true;
+    }
+
+    setMapTransform({
+      scale,
+      x: currentMidpointX - (pinch.startMidpointX - pinch.origin.x) * ratio,
+      y: currentMidpointY - (pinch.startMidpointY - pinch.origin.y) * ratio,
+    });
+  }
+
+  function temporarilySuppressClick() {
+    suppressNextClick.current = true;
+    window.setTimeout(() => {
+      suppressNextClick.current = false;
+    }, 900);
+  }
+
   function zoomAt(
     clientX: number,
     clientY: number,
@@ -856,12 +975,13 @@ export function MovieSubwayMap({
     const cursorX = clientX - rect.left;
     const cursorY = clientY - rect.top;
     const scale = clamp(nextScale, MIN_SCALE, MAX_SCALE);
-    const ratio = scale / transform.scale;
+    const origin = transformRef.current;
+    const ratio = scale / origin.scale;
 
-    setCustomTransform({
+    setMapTransform({
       scale,
-      x: cursorX - (cursorX - transform.x) * ratio,
-      y: cursorY - (cursorY - transform.y) * ratio,
+      x: cursorX - (cursorX - origin.x) * ratio,
+      y: cursorY - (cursorY - origin.y) * ratio,
     });
   }
 
@@ -872,34 +992,73 @@ export function MovieSubwayMap({
     zoomAt(
       event.clientX,
       event.clientY,
-      transform.scale * delta,
+      transformRef.current.scale * delta,
       event.currentTarget,
     );
   }
 
   function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement;
+    const isMapControlTarget = Boolean(
+      target.closest("[data-station-button]") || target.closest("[data-line-focus]"),
+    );
 
-    if (target.closest("[data-station-button]")) {
+    if (isMapControlTarget && event.pointerType !== "touch") {
       return;
     }
 
-    if (target.closest("[data-line-focus]")) {
+    activePointers.current.set(event.pointerId, {
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Some browsers may reject capture for interrupted touch sequences.
+    }
+
+    if (activePointers.current.size >= 2) {
+      event.preventDefault();
+      startPinch(event.currentTarget);
       return;
     }
 
-    event.currentTarget.setPointerCapture(event.pointerId);
+    if (isMapControlTarget) {
+      return;
+    }
+
+    const origin = transformRef.current;
+
     dragState.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      originX: transform.x,
-      originY: transform.y,
+      originX: origin.x,
+      originY: origin.y,
       moved: false,
     };
   }
 
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
+    if (activePointers.current.has(event.pointerId)) {
+      activePointers.current.set(event.pointerId, {
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
+    }
+
+    if (activePointers.current.size >= 2) {
+      event.preventDefault();
+
+      if (!pinchState.current) {
+        startPinch(event.currentTarget);
+      }
+
+      updatePinch(event.currentTarget);
+      return;
+    }
+
     const drag = dragState.current;
 
     if (!drag || drag.pointerId !== event.pointerId) {
@@ -913,14 +1072,48 @@ export function MovieSubwayMap({
       drag.moved = true;
     }
 
-    setCustomTransform((current) => ({
-      ...(current ?? defaultTransform),
+    setMapTransform({
+      ...transformRef.current,
       x: drag.originX + deltaX,
       y: drag.originY + deltaY,
-    }));
+    });
   }
 
   function handlePointerUp(event: PointerEvent<HTMLDivElement>) {
+    activePointers.current.delete(event.pointerId);
+
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture may already be gone after browser-level cancellation.
+    }
+
+    if (pinchState.current && activePointers.current.size < 2) {
+      if (pinchState.current.moved) {
+        temporarilySuppressClick();
+      }
+
+      pinchState.current = null;
+
+      const remainingPointer = Array.from(activePointers.current.entries())[0];
+
+      if (remainingPointer) {
+        const [pointerId, pointer] = remainingPointer;
+        const origin = transformRef.current;
+
+        dragState.current = {
+          pointerId,
+          startX: pointer.clientX,
+          startY: pointer.clientY,
+          originX: origin.x,
+          originY: origin.y,
+          moved: true,
+        };
+      }
+
+      return;
+    }
+
     const drag = dragState.current;
 
     if (drag?.pointerId === event.pointerId) {
@@ -932,11 +1125,23 @@ export function MovieSubwayMap({
     }
   }
 
+  function handleClickCapture(event: MouseEvent<HTMLDivElement>) {
+    if (!suppressNextClick.current) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    suppressNextClick.current = false;
+  }
+
   function nudgeZoom(delta: number) {
-    setCustomTransform((current) => ({
-      ...(current ?? defaultTransform),
-      scale: clamp((current ?? defaultTransform).scale + delta, MIN_SCALE, MAX_SCALE),
-    }));
+    const current = transformRef.current;
+
+    setMapTransform({
+      ...current,
+      scale: clamp(current.scale + delta, MIN_SCALE, MAX_SCALE),
+    });
   }
 
   return (
@@ -951,6 +1156,7 @@ export function MovieSubwayMap({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onClickCapture={handleClickCapture}
       >
         <div
           className="absolute left-0 top-0"
